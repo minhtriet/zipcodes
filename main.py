@@ -5,12 +5,14 @@ from pathlib import Path
 import pandas as pd
 from tqdm.asyncio import tqdm_asyncio
 
+from src.data_handler import DataHandler
 from src.geocoder import Geocoder
 
+MAX_LINES_ALLOWED_CENSUS = 10000
 
-async def process_csv(csv_filename="part_unmatch_and_tie.csv"):
+
+async def process_csv(df):
     gs = Geocoder()
-    df = pd.read_csv(csv_filename)
     if "Street address" not in df.columns:
         raise "Column address not found in the CSV file"
     tuples = await tqdm_asyncio.gather(*(gs.process(v) for v in df['Street address'].values))
