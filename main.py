@@ -1,4 +1,6 @@
+import argparse
 import asyncio
+from pathlib import Path
 
 import pandas as pd
 from tqdm.asyncio import tqdm_asyncio
@@ -16,5 +18,17 @@ async def process_csv(csv_filename="part_unmatch_and_tie.csv"):
 
 
 if __name__ == "__main__":
-    tracts = asyncio.run(process_csv())
-    print(tracts)
+    parser = argparse.ArgumentParser(description='Address to Tracts, Block Groups and Blocks')
+    parser.add_argument('-f', type=str, default='part_unmatch_and_tie.csv',
+                        help='The path of the file containing the addresses')
+
+    args = parser.parse_args()
+    df = pd.read_csv(args.f)
+    tracts = asyncio.run(process_csv(df))
+    dh = DataHandler()
+    df_with_tracts = dh.append_to_table(df, tracts)
+
+    # create path for finished file
+    finished_file_name = str(Path(args.f).stem) + "_finished.csv"
+    path_to_file = Path(args.f).parent
+    df_with_tracts.to_csv(path_to_file.joinpath(finished_file_name), index=False)
