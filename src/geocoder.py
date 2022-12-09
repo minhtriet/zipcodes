@@ -89,16 +89,19 @@ class Geocoder:
 
     def _parse_google_response(self, geocode_result) -> tuple:
         """
-        Parse the result from Google API.
+        Parse the result from Google API. Since there is an autocorrection in place for the Google Geocoder API,
+        its autocorrected address with also be returned to compare with the original input address
         Args:
-            response:
+            geocode_result:
                 Expecting the response to have the following structure.
                 {...
+                    'address_components':
+                    'formatted_address': str,
                     'geometry': {'location': {'lat': ..., 'lng': ...}
                 ...}
         Returns:
-            Tuple containing lng and lat of the response, (None, None) if
-            the input cannot be parsed
+            Tuple containing lng, lat, corrected address and addresses component of the response
+            or a tuple with `None`s if the input cannot be parsed
         """
         self.logger.info("Begin parsing Google response")
         if len(geocode_result) == 1:  # exact match
