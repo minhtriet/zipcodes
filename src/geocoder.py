@@ -1,7 +1,9 @@
 import logging
+from typing import OrderedDict
 
 import googlemaps
 import requests
+import usaddress
 import yaml
 
 
@@ -104,25 +106,61 @@ class Geocoder:
         elif len(geocode_result) > 1:  # multiple matches
             geocode_result = geocode_result[0]
         else:
-            self.logger.warning("Unable to get a coordinate for address")
-            return None, None
-        geometry = geocode_result.get('geometry')
-        if geometry:
-            location = geometry.get('location')
-            if location:
-                lng, lat = location.get('lng'), location.get('lat')
-                self.logger.info("Finish parsing Google response")
-                return lng, lat
-            else:
-                self.logger.warning("Unable to get a correct dict structure")
-                return None, None
-        else:
+            self.logger.warning("Google API could not find any match for an address")
+        try:
+            lng = geocode_result['geometry']['location']['lng']
+            lat = geocode_result['geometry']['location']['lat']
+            formatted_address = geocode_result['formatted_address']
+            address_component = geocode_result['address_components']
+            return lng, lat, formatted_address, address_component
+        except (KeyError, TypeError):
             self.logger.warning("Unable to get a correct dict structure")
-            return None, None
+        return None, None, None, None
+
+    def _compare_address(self, address_1: str, parsed_adress: OrderedDict) -> bool:
+        """
+        Compare and answers if the two addresses is the same or not
+        Args:
+            address_1:
+                A string address
+            parsed_adress:
+                A dictionary with the components of the address, this is the result from Google
+
+        Returns:
+            If the two addresses is the same or not
+        """
+        tagged, _ = usaddress.tag(address_1)
+
+        # address number
+        address_number_dict = next(x for x in parsed_adress if x['types'] == ['street_number'])
+        if address_number_dict.get('long_name') != tagged.get('AddressNumber'):
+            return False
+        # street name
+        street_name_dict = next(x for x in parsed_adress if x['types'] == ['route'])
+        if street_name_dict.get('short_name').lower() != ' '.join(tagged.get('StreetName'),
+                                                                  tagged.get('StreetNamePostType')).lower():
+            return False
+        # city name
+        city_name_dict = next(x for x in parsed_adress if 'locality' in x['types'])
+        if city_name_dict.get('short_name').lower() != ' '.join(tagged.get('StreetName'),
+                                                              tagged.get('StreetNamePostType')).lower():
+            return False
+        # state name
+        state_name_dict = next(x for x in parsed_adress if 'administrative_area_level_1' in x['types'])
+        if tagged.get('StateName').lower() != state_name_dict.get('short_name').lower():
+            return False
+        # postal code
+        postal_code_dict = next(x for x in parsed_adress['address_components'] if x['types'] == ['postal_code'])
+        if postal_code_dict['long_name'] != tagged.get('ZipCode'):
+            return False
+
+        return True
+
 
     async def process(self, addr: str):
         """
-        Convert an address to lat long
+        Convert an address to lat long. Also check if returned address from Google is the same as the address
+        being passed to
         Args:
             addr: An address
 
