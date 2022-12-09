@@ -171,10 +171,11 @@ class Geocoder:
             A tuple of (tract, block group, block)
         """
         lng_lat_response = await self._call_api_from_addr_to_lng_lat(addr)
-        lng, lat = self._parse_google_response(lng_lat_response)
-        if lng and lat:
+        lng, lat, autocorrected_addr, addr_components = self._parse_google_response(lng_lat_response)
+        if lng and lat:  # a result was found through Google
             census_response = await self._call_api_from_lat_lng_to_block(lng, lat)
             tract, block_group, block = self._parse_census_response(census_response)
-            return tract, block_group, block
-        else:
-            return None, None, None
+            # check if the address returned is the same as the original address
+            return tract, block_group, block, autocorrected_addr, self._compare_address(addr, addr_components)
+        else:   #
+            return None, None, None, None, None
