@@ -1,14 +1,36 @@
+import asyncio
+import io
+import logging
+import tempfile
+from typing import List
+
+import aiohttp
 import numpy as np
 import pandas as pd
+import yaml
+
+from src import constants
 
 
 class DataHandler:
+    """
+    This class handle the first stage of the workflow:
+    1. Splitting a big files to chunks
+    2. Upload those chunks to Census batch
+    3. Join them together at the end
+    """
 
     def __init__(self):
-        self.max_rows_per_file = 10000
-
-    def _split_file_to_files_with_max_rows(self, filename):
-        pass
+        with open("secret.yaml", "r") as stream:
+            try:
+                secret = yaml.safe_load(stream)
+            except yaml.YAMLError as exc:
+                print(exc)
+        self.census_key = secret['key']['census_api']
+        default_logging = logging.INFO
+        logging.basicConfig(level=default_logging)
+        self.logger = logging.getLogger()
+        self.logger.setLevel(default_logging)
 
     def append_to_table(self, original_address_table: pd.DataFrame, tract_blkgrp_blk: list) -> pd.DataFrame:
         """
