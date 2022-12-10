@@ -27,12 +27,34 @@ if __name__ == "__main__":
                         ''')
 
     args = parser.parse_args()
-    df = pd.read_csv(args.f)
-    tracts = asyncio.run(process_csv(df))
+
+    logging.getLogger(__name__)
+
     dh = DataHandler()
-    df_with_tracts = dh.append_to_table(df, tracts)
+    # split the CSV and pushed the chunks to Census
+    batch_processing = asyncio.run(dh.batch_process_csv(args.f))
+    all_result_after_census = pd.concat(batch_processing)
+
+    # The index of columns in the next lines is the interested column fron Census returned CSVs.
+    # Their columns are:
+    #  ['ID', 'Street address', 'is_matched', 'match_type', 'cleaned_address',
+    #  'lat_lon', 'tigerLine_id', 'side', 'state', 'county', 'tract', 'block']
+    result_with_columns = pd.DataFrame(data=all_result_after_census.iloc[:, [0, 1, 2, 4, -2, -1]].values,
+                                       columns=['ID', 'Street address', 'is_matched', 'corrected_address', 'tract', 'block'])
+    result_with_columns['tract'] = result_with_columns['tract'].astype("Int64")
+    result_with_columns['block'] = result_with_columns['block'].astype("Int64")
+
+    matched = result_with_columns[result_with_columns['is_matched'] == 'Match'].drop('is_matched', axis=1)
+    matched['blockgroup'] = matched['block'].astype(str).str[0]
+
+    unmatched_and_tie = result_with_columns[result_with_columns['is_matched'] != 'Match'].drop('is_matched', axis=1)
+    tracts = asyncio.run(process_umatched_csv(unmatched_and_tie))
+    unmatched_and_tie[['tract', 'blockgroup', 'block', 'autocorrected_addr', 'same_addr']] = tracts
+
+    final_result = pd.concat([matched, unmatched_and_tie])
 
     # create path for finished file
     finished_file_name = str(Path(args.f).stem) + "_finished.csv"
     path_to_file = Path(args.f).parent
-    df_with_tracts.to_csv(path_to_file.joinpath(finished_file_name), index=False)
+    final_result.to_csv(path_to_file.joinpath(finished_file_name), index=False)
+    logging.info(f"DONE! Results are saved to {finished_file_name}")
