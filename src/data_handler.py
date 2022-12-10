@@ -47,3 +47,51 @@ class DataHandler:
         original_column_names = np.append(original_address_table.columns, tract_blkgrp_blk.columns)
         concated_df = pd.concat([original_address_table, tract_blkgrp_blk], axis=1, ignore_index=True)
         return concated_df.rename(dict(zip(concated_df.columns, original_column_names)), axis=1)
+
+    async def _post_batch_to_census(self, chunk, session: aiohttp.ClientSession):
+        """
+        Pass a chunk of the dataframe to Census. How to include the API key into a request is at
+        https://www.census.gov/content/dam/Census/data/developers/api-user-guide/api-guide.pdf, page 21
+        Args:
+            chunk:
+                A chunk of frame taken from the original big input file
+            session:
+                An async http session to make a request
+        Returns:
+
+        """
+        with tempfile.NamedTemporaryFile(suffix='.csv') as tmp:
+            chunk.to_csv(tmp.name, index=False, header=False)
+            files = {
+                'addressFile': open(tmp.name, 'rb'),
+                # For benchmark, we use ACS layers numbering, documented at Page C-1 in appendix in
+                # https://www2.census.gov/geo/pdfs/maps-data/data/Census_Geocoder_User_Guide.pdf.
+                'benchmark': 'Public_AR_Current',
+                'vintage': '4',
+                # For layers, 8 is for tracts, 10 is for block groups, and 12 is for blocks.
+                'layers': '10,12',
+                'key': self.census_key
+            }
+            response = await session.post(constants.CENSUS_BATCH_URL, data=files)
+            response_text = await response.text()
+            return pd.read_csv(io.StringIO(response_text), header=None)
+
+    async def batch_process_csv(self, filename: str) -> List[pd.DataFrame]:
+        """
+        Split filename into batches and push them to Census
+        Args:
+            filename:
+                The big CSV file name to parse, required to have the columns addressed in
+                https://geocoding.geo.census.gov/geocoder/Geocoding_Services_API.html#_Toc7768597.
+                Namely, the columns are `Unique ID` (Just as a reference), `Street address`, `City`, `State`, `ZIP`
+        Returns:
+            List of processed dataframe
+        """
+        async with aiohttp.ClientSession() as session:
+            self.logger.info("Starting to submit batches to Census API")
+            processed_dfs = await asyncio.gather(*(self._post_batch_to_census(chunk, session)
+                                                   for chunk in pd.read_csv(filename,
+                                                                            chunksize=constants.MAX_LINES_ALLOWED_CENSUS,
+                                                                            header=None)))
+            self.logger.info("Finished submitting batches to Census API\n---------------")
+            return processed_dfs
