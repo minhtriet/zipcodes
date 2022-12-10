@@ -58,22 +58,23 @@ class Geocoder:
             'y': lat,
             'benchmark': 4,
             'vintage': 4,
-            'format': "json"
+            'format': "json",
+            'key': self.census_key
         }
-        response = requests.get('https://geocoding.geo.census.gov/geocoder/geographies/coordinates', params=params)
+        response = requests.get(constants.CENSUS_GEOCODER_FROM_COORD, params=params)
         # await asyncio.sleep(2)
         self.logger.info("Finish calling Census API.")
         return response
 
-    def _parse_census_response(self, response):
+    def _parse_census_lng_lat_response(self, response) -> Tuple:
         """
-
+        After submitting the lat and lng to Census Geocoder, they will return with a response with the tract
+        data of the coordinate
         Args:
             response:
-                Expecting the response to have the following structure. todo what structure
-
+                A response from Census
         Returns:
-
+            A tuple of (tract, block group, block)
         """
         self.logger.info("Begin parsing Census API")
         tract, block_group, block = None, None, None
@@ -143,25 +144,23 @@ class Geocoder:
             return False
         # street name
         street_name_dict = next(x for x in parsed_adress if x['types'] == ['route'])
-        if street_name_dict.get('short_name').lower() != ' '.join(tagged.get('StreetName'),
-                                                                  tagged.get('StreetNamePostType')).lower():
+        if street_name_dict.get('short_name').lower() != ' '.join([tagged.get('StreetName'),
+                                                                   tagged.get('StreetNamePostType')]).lower():
             return False
         # city name
         city_name_dict = next(x for x in parsed_adress if 'locality' in x['types'])
-        if city_name_dict.get('short_name').lower() != ' '.join(tagged.get('StreetName'),
-                                                              tagged.get('StreetNamePostType')).lower():
+        if city_name_dict.get('short_name').lower() != tagged.get('PlaceName').lower():
             return False
         # state name
         state_name_dict = next(x for x in parsed_adress if 'administrative_area_level_1' in x['types'])
         if tagged.get('StateName').lower() != state_name_dict.get('short_name').lower():
             return False
         # postal code
-        postal_code_dict = next(x for x in parsed_adress['address_components'] if x['types'] == ['postal_code'])
+        postal_code_dict = next(x for x in parsed_adress if x['types'] == ['postal_code'])
         if postal_code_dict['long_name'] != tagged.get('ZipCode'):
             return False
 
         return True
-
 
     async def process(self, addr: str):
         """
@@ -171,14 +170,14 @@ class Geocoder:
             addr: An address
 
         Returns:
-            A tuple of (tract, block group, block)
+            A tuple of (tract, block group, block, autocorrected_addr, if autocorrected_addr == addr)
         """
         lng_lat_response = await self._call_api_from_addr_to_lng_lat(addr)
         lng, lat, autocorrected_addr, addr_components = self._parse_google_response(lng_lat_response)
         if lng and lat:  # a result was found through Google
             census_response = await self._call_api_from_lat_lng_to_block(lng, lat)
-            tract, block_group, block = self._parse_census_response(census_response)
+            tract, block_group, block = self._parse_census_lng_lat_response(census_response)
             # check if the address returned is the same as the original address
             return tract, block_group, block, autocorrected_addr, self._compare_address(addr, addr_components)
-        else:   #
+        else:  #
             return None, None, None, None, None
