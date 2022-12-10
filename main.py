@@ -1,14 +1,13 @@
 import argparse
 import asyncio
-from pathlib import Path
 
 import pandas as pd
 from tqdm.asyncio import tqdm_asyncio
-
+from pathlib import Path
 from src.data_handler import DataHandler
 from src.geocoder import Geocoder
 
-MAX_LINES_ALLOWED_CENSUS = 10000
+import logging
 
 
 async def process_csv(df):
