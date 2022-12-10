@@ -9,8 +9,7 @@ from src.geocoder import Geocoder
 
 import logging
 
-
-async def process_csv(df):
+async def process_umatched_csv(df):
     gs = Geocoder()
     if "Street address" not in df.columns:
         raise "Column address not found in the CSV file"
