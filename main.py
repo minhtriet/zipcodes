@@ -19,8 +19,12 @@ async def process_umatched_csv(df):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Address to Tracts, Block Groups and Blocks')
-    parser.add_argument('-f', type=str, default='part_unmatch_and_tie.csv',
-                        help='The path of the file containing the addresses')
+    parser.add_argument('-f', type=str, default='portion_addr.csv',
+                        help='''
+                        The path of the addresses file, which should not have header columns. However, according to
+                        https://geocoding.geo.census.gov/geocoder/Geocoding_Services_API.html#_Toc7768597,
+                        the columns are `Unique ID` (Just as a reference), `Street address`, `City`, `State`, `ZIP`
+                        ''')
 
     args = parser.parse_args()
     df = pd.read_csv(args.f)
