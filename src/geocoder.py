@@ -1,10 +1,12 @@
 import logging
-from typing import OrderedDict
+from typing import Dict, List, Tuple
 
 import googlemaps
 import requests
 import usaddress
 import yaml
+
+from src import constants
 
 
 class Geocoder:
@@ -17,6 +19,7 @@ class Geocoder:
                 print(exc)
         default_logging = logging.INFO
         self.gmaps = googlemaps.Client(key=secret['key']['google_api'])
+        self.census_key = secret['key']['census_api']
         logging.basicConfig(level=default_logging)
         self.logger = logging.getLogger()
         self.logger.setLevel(default_logging)
@@ -120,7 +123,7 @@ class Geocoder:
             self.logger.warning("Unable to get a correct dict structure")
         return None, None, None, None
 
-    def _compare_address(self, address_1: str, parsed_adress: OrderedDict) -> bool:
+    def _compare_address(self, address_1: str, parsed_adress: List[Dict]) -> bool:
         """
         Compare and answers if the two addresses is the same or not
         Args:
