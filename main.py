@@ -30,20 +30,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     logging.getLogger(__name__)
+    logging.root.setLevel(src.constants.LOGGING_LEVEL)
 
     dh = DataHandler()
     # split the CSV and pushed the chunks to Census
-    batch_processing = asyncio.run(dh.batch_process_csv(args.f))
-    all_result_after_census = pd.concat(batch_processing)
-
-    # The index of columns in the next lines is the interested column fron Census returned CSVs.
-    # Their columns are:
-    #  ['ID', 'Street address', 'is_matched', 'match_type', 'cleaned_address',
-    #  'lat_lon', 'tigerLine_id', 'side', 'state', 'county', 'tract', 'block']
-    result_with_columns = pd.DataFrame(data=all_result_after_census.iloc[:, [0, 1, 2, 4, -2, -1]].values,
-                                       columns=['ID', 'Street address', 'is_matched', 'corrected_address', 'tract', 'block'])
-    result_with_columns['tract'] = result_with_columns['tract'].astype("Int64")
-    result_with_columns['block'] = result_with_columns['block'].astype("Int64")
+    result_with_columns = asyncio.run(dh.batch_process_csv(args.f))
 
     matched = result_with_columns[result_with_columns['is_matched'] == 'Match'].drop('is_matched', axis=1)
     matched['blockgroup'] = matched['block'].astype(str).str[0]
