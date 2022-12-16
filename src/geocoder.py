@@ -87,8 +87,8 @@ class Geocoder:
                 tract = int(tract_info.get('TRACT'))
         else:
             self.logger.error(f'''Census server responded with failure code (Code: {response.status_code}).\n
-            The error is {response['error']}\n Please rerun the program. 
-            If the problem persists please run at another time.''')
+            The error is {response.content}\n Please rerun the program. 
+            If the problem persists please run at another time when the Census server is more stable.''')
         self.logger.debug("Finish parsing Census API")
         return tract, block_group, block
 
