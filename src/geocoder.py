@@ -137,7 +137,13 @@ class Geocoder:
         Returns:
             If the two addresses is the same or not
         """
-        tagged, _ = usaddress.tag(address_1)
+        try:
+            tagged, _ = usaddress.tag(address_1)
+        except usaddress.RepeatedLabelError:
+            # With a legit address like `368 N 750 W, American Fork, UT 84003, USA`, usaddress confused
+            # 360 and 750 as address number. There has been multiple reports like this, not necessarily with
+            # address number alone (https://github.com/datamade/usaddress/issues?page=2&q=is%3Aissue+is%3Aopen+RepeatedLabelError)
+            return False
 
         try:
             # Get the dict values from Google response
