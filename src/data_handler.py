@@ -93,4 +93,15 @@ class DataHandler:
                                                                             chunksize=constants.MAX_LINES_ALLOWED_CENSUS,
                                                                             header=None)))
             self.logger.info("Finished submitting batches to Census API\n---------------")
-            return processed_dfs
+
+            all_result_after_census = pd.concat(processed_dfs)
+
+            # The index of columns in the next lines is the interested column fron Census returned CSVs.
+            # Their columns are:
+            #  ['ID', 'Street address', 'is_matched', 'match_type', 'cleaned_address',
+            #  'lat_lon', 'tigerLine_id', 'side', 'state', 'county', 'tract', 'block']
+            result_with_columns = pd.DataFrame(data=all_result_after_census.iloc[:, [0, 1, 2, 4, -2, -1]].values,
+                                               columns=['ID', 'Street address', 'is_matched', 'corrected_address', 'tract', 'block'])
+            result_with_columns['tract'] = result_with_columns['tract'].astype("Int64")
+            result_with_columns['block'] = result_with_columns['block'].astype("Int64")
+            return result_with_columns
