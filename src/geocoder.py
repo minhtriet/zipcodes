@@ -17,12 +17,10 @@ class Geocoder:
                 secret = yaml.safe_load(stream)
             except yaml.YAMLError as exc:
                 print(exc)
-        default_logging = logging.INFO
         self.gmaps = googlemaps.Client(key=secret['key']['google_api'])
         self.census_key = secret['key']['census_api']
-        logging.basicConfig(level=default_logging)
-        self.logger = logging.getLogger()
-        self.logger.setLevel(default_logging)
+        self.logger = logging.getLogger(__name__)
+        logging.basicConfig(format='%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s', level=constants.LOGGING_LEVEL)
 
     async def _call_api_from_addr_to_lng_lat(self, addr: str):
         """
@@ -37,10 +35,10 @@ class Geocoder:
         Returns:
             A tuple that contains the (lat, long) value of given address
         """
-        self.logger.info("Begin to call Google API")
+        self.logger.debug("Begin to call Google API")
         geocode_result = self.gmaps.geocode(addr)
         # await asyncio.sleep(3)
-        self.logger.info("Finish calling Google API")
+        self.logger.debug("Finish calling Google API")
         return geocode_result
 
     async def _call_api_from_lat_lng_to_block(self, lng: float, lat: float):
@@ -52,7 +50,7 @@ class Geocoder:
         Returns:
             A tuple of (tract, block group, block)
         """
-        self.logger.info("Begin to call Census API")
+        self.logger.debug("Begin to call Census API")
         params = {
             'x': lng,
             'y': lat,
@@ -63,7 +61,7 @@ class Geocoder:
         }
         response = requests.get(constants.CENSUS_GEOCODER_FROM_COORD, params=params)
         # await asyncio.sleep(2)
-        self.logger.info("Finish calling Census API.")
+        self.logger.debug("Finish calling Census API.")
         return response
 
     def _parse_census_lng_lat_response(self, response) -> Tuple:
@@ -76,7 +74,7 @@ class Geocoder:
         Returns:
             A tuple of (tract, block group, block)
         """
-        self.logger.info("Begin parsing Census API")
+        self.logger.debug("Begin parsing Census API")
         tract, block_group, block = None, None, None
         if response.status_code == 200:
             response_result = response.json()['result']
@@ -87,8 +85,8 @@ class Geocoder:
                 tract_info, = geographies.get('Census Tracts')
                 tract = int(tract_info.get('TRACT'))
         else:
-            logging.error(response['error'])
-        self.logger.info("Finish parsing Census API")
+            self.logger.error(response['error'])
+        self.logger.debug("Finish parsing Census API")
         return tract, block_group, block
 
     def _parse_google_response(self, geocode_result) -> tuple:
@@ -107,7 +105,7 @@ class Geocoder:
             Tuple containing lng, lat, corrected address and addresses component of the response
             or a tuple with `None`s if the input cannot be parsed
         """
-        self.logger.info("Begin parsing Google response")
+        self.logger.debug("Begin parsing Google response")
         if len(geocode_result) == 1:  # exact match
             geocode_result, = geocode_result
         elif len(geocode_result) > 1:  # multiple matches
@@ -138,25 +136,30 @@ class Geocoder:
         """
         tagged, _ = usaddress.tag(address_1)
 
+        try:
+            # Get the dict values from Google response
+            address_number_dict = next(x for x in parsed_adress if x['types'] == ['street_number'])
+            street_name_dict = next(x for x in parsed_adress if x['types'] == ['route'])
+            city_name_dict = next(x for x in parsed_adress if 'locality' in x['types'])
+            state_name_dict = next(x for x in parsed_adress if 'administrative_area_level_1' in x['types'])
+            postal_code_dict = next(x for x in parsed_adress if x['types'] == ['postal_code'])
+        except StopIteration:
+            return False
+
         # address number
-        address_number_dict = next(x for x in parsed_adress if x['types'] == ['street_number'])
         if address_number_dict.get('long_name') != tagged.get('AddressNumber'):
             return False
         # street name
-        street_name_dict = next(x for x in parsed_adress if x['types'] == ['route'])
-        if street_name_dict.get('short_name').lower() != ' '.join([tagged.get('StreetName'),
-                                                                   tagged.get('StreetNamePostType')]).lower():
+        if street_name_dict.get('short_name').lower() != ' '.join(filter(None, [tagged.get('StreetName'),
+                                                                                tagged.get('StreetNamePostType')])).lower():
             return False
         # city name
-        city_name_dict = next(x for x in parsed_adress if 'locality' in x['types'])
         if city_name_dict.get('short_name').lower() != tagged.get('PlaceName').lower():
             return False
         # state name
-        state_name_dict = next(x for x in parsed_adress if 'administrative_area_level_1' in x['types'])
         if tagged.get('StateName').lower() != state_name_dict.get('short_name').lower():
             return False
         # postal code
-        postal_code_dict = next(x for x in parsed_adress if x['types'] == ['postal_code'])
         if postal_code_dict['long_name'] != tagged.get('ZipCode'):
             return False
 
