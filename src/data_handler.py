@@ -69,6 +69,7 @@ class DataHandler:
                 'layers': '10,12',
                 'key': self.census_key
             }
+            self.logger.info("A batch has been submitted, awaiting response...")
             response = await session.post(constants.CENSUS_BATCH_URL, data=files)
             response_text = await response.text()
             return pd.read_csv(io.StringIO(response_text), header=None,
