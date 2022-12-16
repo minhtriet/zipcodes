@@ -20,7 +20,8 @@ class Geocoder:
         self.gmaps = googlemaps.Client(key=secret['key']['google_api'])
         self.census_key = secret['key']['census_api']
         self.logger = logging.getLogger(__name__)
-        logging.basicConfig(format='%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s', level=constants.LOGGING_LEVEL)
+        logging.basicConfig(format='%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s',
+                            level=constants.LOGGING_LEVEL)
 
     async def _call_api_from_addr_to_lng_lat(self, addr: str):
         """
@@ -85,7 +86,9 @@ class Geocoder:
                 tract_info, = geographies.get('Census Tracts')
                 tract = int(tract_info.get('TRACT'))
         else:
-            self.logger.error(response['error'])
+            self.logger.error(f'''Census server responded with failure code (Code: {response.status_code}).\n
+            The error is {response['error']}\n Please rerun the program. 
+            If the problem persists please run at another time.''')
         self.logger.debug("Finish parsing Census API")
         return tract, block_group, block
 
@@ -151,7 +154,8 @@ class Geocoder:
             return False
         # street name
         if street_name_dict.get('short_name').lower() != ' '.join(filter(None, [tagged.get('StreetName'),
-                                                                                tagged.get('StreetNamePostType')])).lower():
+                                                                                tagged.get(
+                                                                                    'StreetNamePostType')])).lower():
             return False
         # city name
         if city_name_dict.get('short_name').lower() != tagged.get('PlaceName').lower():
