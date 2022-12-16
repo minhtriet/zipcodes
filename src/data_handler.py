@@ -2,7 +2,6 @@ import asyncio
 import io
 import logging
 import tempfile
-from typing import List
 
 import aiohttp
 import numpy as np
@@ -27,10 +26,8 @@ class DataHandler:
             except yaml.YAMLError as exc:
                 print(exc)
         self.census_key = secret['key']['census_api']
-        default_logging = logging.INFO
-        logging.basicConfig(level=default_logging)
-        self.logger = logging.getLogger()
-        self.logger.setLevel(default_logging)
+        self.logger = logging.getLogger(__name__)
+        logging.basicConfig(format='%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s', level=constants.LOGGING_LEVEL)
 
     def append_to_table(self, original_address_table: pd.DataFrame, tract_blkgrp_blk: list) -> pd.DataFrame:
         """
@@ -74,9 +71,11 @@ class DataHandler:
             }
             response = await session.post(constants.CENSUS_BATCH_URL, data=files)
             response_text = await response.text()
-            return pd.read_csv(io.StringIO(response_text), header=None)
+            return pd.read_csv(io.StringIO(response_text), header=None,
+                               names=['ID', 'Street address', 'is_matched', 'match_type', 'cleaned_address', 'lat_lon',
+                                      'tigerLine_id', 'side', 'state', 'county', 'tract', 'block'])
 
-    async def batch_process_csv(self, filename: str) -> List[pd.DataFrame]:
+    async def batch_process_csv(self, filename: str) -> pd.DataFrame:
         """
         Split filename into batches and push them to Census
         Args:
@@ -85,7 +84,7 @@ class DataHandler:
                 https://geocoding.geo.census.gov/geocoder/Geocoding_Services_API.html#_Toc7768597.
                 Namely, the columns are `Unique ID` (Just as a reference), `Street address`, `City`, `State`, `ZIP`
         Returns:
-            List of processed dataframe
+            A concatenated df with column names from list of processed dataframes
         """
         async with aiohttp.ClientSession() as session:
             self.logger.info("Starting to submit batches to Census API")
