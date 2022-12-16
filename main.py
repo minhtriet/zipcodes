@@ -1,13 +1,14 @@
 import argparse
 import asyncio
+import logging
+from pathlib import Path
 
 import pandas as pd
 from tqdm.asyncio import tqdm_asyncio
-from pathlib import Path
+
+import src.constants
 from src.data_handler import DataHandler
 from src.geocoder import Geocoder
-
-import logging
 
 async def process_umatched_csv(df):
     gs = Geocoder()
