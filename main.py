@@ -4,6 +4,7 @@ import logging
 import os.path
 from pathlib import Path
 
+import aiohttp
 import pandas as pd
 from tqdm.asyncio import tqdm_asyncio
 
@@ -12,11 +13,12 @@ from src.data_handler import DataHandler
 from src.geocoder import Geocoder
 
 
-async def process_umatched_csv(df):
+async def process_unmatched_csv(df):
     gs = Geocoder()
     if "Street address" not in df.columns:
         raise "Column address not found in the CSV file"
-    tuples = await tqdm_asyncio.gather(*(gs.process(v) for v in df['Street address'].values))
+    async with aiohttp.ClientSession() as session:
+        tuples = await tqdm_asyncio.gather(*(gs.process(v, session) for v in df['Street address'].values))
     return tuples
 
 
