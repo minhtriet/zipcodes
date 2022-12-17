@@ -82,8 +82,9 @@ class Geocoder:
         """
         self.logger.debug("Begin parsing Census API")
         tract, block_group, block = None, None, None
-        if response.status_code == 200:
-            response_result = response.json()['result']
+        if response.status == 200:
+            response_result = await response.json()
+            response_result = response_result.get('result')
             geographies = response_result.get('geographies')
             if geographies:  # there is a match
                 block_info, = geographies.get('2020 Census Blocks')
@@ -91,8 +92,8 @@ class Geocoder:
                 tract_info, = geographies.get('Census Tracts')
                 tract = int(tract_info.get('TRACT'))
         else:
-            self.logger.error(f'''Census server responded with failure code (Code: {response.status_code}).\n
-            The error is {response.content}\n Please rerun the program. 
+            self.logger.error(f'''Census server responded with failure code (Code: {response.status}).
+            The reason is {response.reason}. Please rerun the program.
             If the problem persists please run at another time when the Census server is more stable.''')
         self.logger.debug("Finish parsing Census API")
         return tract, block_group, block
@@ -180,21 +181,21 @@ class Geocoder:
 
         return True
 
-    async def process(self, addr: str):
+    async def process(self, addr: str, session: aiohttp.ClientSession) -> Tuple:
         """
         Convert an address to lat long. Also check if returned address from Google is the same as the address
         being passed to
         Args:
             addr: An address
-
+            session: An async http session to make request
         Returns:
             A tuple of (tract, block group, block, autocorrected_addr, if autocorrected_addr == addr)
         """
-        lng_lat_response = await self._call_api_from_addr_to_lng_lat(addr)
+        lng_lat_response = self._call_api_from_addr_to_lng_lat(addr)
         lng, lat, autocorrected_addr, addr_components = self._parse_google_response(lng_lat_response)
         if lng and lat:  # a result was found through Google
-            census_response = await self._call_api_from_lat_lng_to_block(lng, lat)
-            tract, block_group, block = self._parse_census_lng_lat_response(census_response)
+            census_response = await self._call_api_from_lat_lng_to_block(lng, lat, session)
+            tract, block_group, block = await self._parse_census_lng_lat_response(census_response)
             # check if the address returned is the same as the original address
             return tract, block_group, block, autocorrected_addr, self._compare_address(addr, addr_components)
         else:  #
