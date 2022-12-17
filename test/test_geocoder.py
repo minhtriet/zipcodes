@@ -1,4 +1,7 @@
 from unittest import IsolatedAsyncioTestCase
+
+import aiohttp
+
 from src import geocoder
 
 class TestGeocoder(IsolatedAsyncioTestCase):
@@ -15,35 +18,37 @@ class TestGeocoder(IsolatedAsyncioTestCase):
                         {'long_name': '44446', 'short_name': '44446', 'types': ['postal_code']}]  # From Google
         self.correct_street = '5412 YOUNGSTOWN WARREN RD , NILES , OH , 44446'  # Census returns something like this
 
-    async def test_from_addr_to_lat_lng_correct_addr(self):
-        response = await self.gc._call_api_from_addr_to_lng_lat('70 W. MADISON , CHICAGO , IL , 60601')
+    def test_from_addr_to_lat_lng_correct_addr(self):
+        response = self.gc._call_api_from_addr_to_lng_lat('70 W. MADISON , CHICAGO , IL , 60601')
         result = self.gc._parse_google_response(response)
         self.assertTrue(len(result) == 4)
         self.assertTrue(type(result[0]) == float)
         self.assertTrue(type(result[1]) == float)
 
-    async def test_from_addr_to_lat_lng_wrong_addr(self):
-        response = await self.gc._call_api_from_addr_to_lng_lat('70')
+    def test_from_addr_to_lat_lng_wrong_addr(self):
+        response = self.gc._call_api_from_addr_to_lng_lat('70')
         result = self.gc._parse_google_response(response)
         self.assertTrue(len(result) == 4)
         self.assertTrue(result[0] is None)
         self.assertTrue(result[1] is None)
 
     async def test_from_lat_lng_to_block_wrong_lat_lng(self):
-        response = await self.gc._call_api_from_lat_lng_to_block(41.88345, -87.628888)
-        result = self.gc._parse_census_lng_lat_response(response)
-        self.assertTrue(len(result) == 3)
-        self.assertTrue(result[0] is None)
-        self.assertTrue(result[1] is None)
-        self.assertTrue(result[2] is None)
+        async with aiohttp.ClientSession() as session:
+            response = await self.gc._call_api_from_lat_lng_to_block(41.88345, -87.628888, session)
+            result = await self.gc._parse_census_lng_lat_response(response)
+            self.assertTrue(len(result) == 3)
+            self.assertTrue(result[0] is None)
+            self.assertTrue(result[1] is None)
+            self.assertTrue(result[2] is None)
 
     async def test_from_lat_lng_to_block_correct_lat_lng(self):
-        response = await self.gc._call_api_from_lat_lng_to_block(-87.628888, 41.88345)
-        result = self.gc._parse_census_lng_lat_response(response)
-        self.assertTrue(len(result) == 3)
-        self.assertTrue(type(result[0]) == int)
-        self.assertTrue(type(result[1]) == int)
-        self.assertTrue(type(result[2]) == int)
+        async with aiohttp.ClientSession() as session:
+            response = await self.gc._call_api_from_lat_lng_to_block(-87.628888, 41.88345, session)
+            result = await self.gc._parse_census_lng_lat_response(response)
+            self.assertTrue(len(result) == 3)
+            self.assertTrue(type(result[0]) == int)
+            self.assertTrue(type(result[1]) == int)
+            self.assertTrue(type(result[2]) == int)
 
     def test__compare_address_all_correct(self):
         self.assertTrue(self.gc._compare_address(self.correct_street, self.correct_address_dict))

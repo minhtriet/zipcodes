@@ -1,8 +1,8 @@
 import logging
 from typing import Dict, List, Tuple
 
+import aiohttp
 import googlemaps
-import requests
 import usaddress
 import yaml
 
@@ -23,13 +23,17 @@ class Geocoder:
         logging.basicConfig(format='%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s',
                             level=constants.LOGGING_LEVEL)
 
-    async def _call_api_from_addr_to_lng_lat(self, addr: str):
+    def _call_api_from_addr_to_lng_lat(self, addr: str):
         """
         Google will try to salvage everything from an address, rather than outright saying no match. For example,
         passing in "9999999 MSON , CHICAGO , NY , 60601" will give two result, one for Chicago, one for NY.
         If input is gibberish, it outputs `[]`
 
         This code, therefore, would take the first result or outputs None if Google or Census cannot find anything
+
+        This code is not async because
+        1/ Google uses `requests` and hence does not support it atm of writing
+        2/ the Census request later down the flow should be awaited instead.
 
         Args:
             addr: An address to get lat_long from
@@ -42,12 +46,13 @@ class Geocoder:
         self.logger.debug("Finish calling Google API")
         return geocode_result
 
-    async def _call_api_from_lat_lng_to_block(self, lng: float, lat: float):
+    async def _call_api_from_lat_lng_to_block(self, lng: float, lat: float, session: aiohttp.ClientSession):
         """
         Use the lng lat to tract, block data using Census API
         Args:
             lng: Longitude
             lat: Latitude
+            session: An async http session to make request
         Returns:
             A tuple of (tract, block group, block)
         """
@@ -60,12 +65,12 @@ class Geocoder:
             'format': "json",
             'key': self.census_key
         }
-        response = requests.get(constants.CENSUS_GEOCODER_FROM_COORD, params=params)
+        response = await session.get(constants.CENSUS_GEOCODER_FROM_COORD, params=params)
         # await asyncio.sleep(2)
         self.logger.debug("Finish calling Census API.")
         return response
 
-    def _parse_census_lng_lat_response(self, response) -> Tuple:
+    async def _parse_census_lng_lat_response(self, response) -> Tuple:
         """
         After submitting the lat and lng to Census Geocoder, they will return with a response with the tract
         data of the coordinate
